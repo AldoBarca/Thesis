@@ -10,7 +10,7 @@ Support sets classe 1,n: 5 eventi positive
 Query sets classe 1,n: n-5 eventi
 
 Support_set_shape_finale:
-[n_classi,]
+[n_classi,num_eventi,num_frames,num_campioni]
 """
 #audio_files:
 #nome_classe: [file][start,fine]
@@ -104,17 +104,20 @@ def get_query_set():
                 lista_start_e_end_time_eventi=[]
                 for evento in dati[classe][csv]["Query"]:
                     lista_start_e_end_time_eventi.append(dati[classe][csv]["Query"][evento])
-            
+
                 audio_files[classe][dati[classe][csv]["Audio"]]=lista_start_e_end_time_eventi
     return audio_files
 
 support_set=get_support_set()  
 query_set=get_query_set()
 #print(support_set)
-#obiettivo: prendere nome file e tutti i frammenti positivi dell'audio con librosa. Poi metterli in una struttura dati in formato:
-           #nome_classe: tensore_coi_dati_solo_frammenti_positivi.
 
 
+def conta_classi_set(set):
+    i=0
+    for classe,file in set.items():
+        i=i+1
+    return i
 def conta_eventi_set(set):
     eventi_classi={}
     for classe,file in set.items():
@@ -133,7 +136,7 @@ print(conta_eventi_set(query_set))
 
 def create_support_set_training():
    
-    support_set_train=torch.empty(3,3)
+    support_set_train=torch.empty(conta_classi_set(support_set),3,3,3)
     print(support_set_train.shape)
     for classe,file in support_set.items():
         campioni_positivi_classe=torch.empty(3,3)#[]
@@ -152,20 +155,19 @@ def create_support_set_training():
                     frames=librosa.util.frame(audio_evento, frame_length=lunghezza_frame,hop_length=lunghezza_frame).T    #l'hop lenght lo faccio intanto senza sovrapposizioni, poi vediamo
                     #campioni_positivi_classe.append(frames)
 
-                    campioni_positivi_classe.cat(frames)
+                    torch.cat(campioni_positivi_classe,frames)
                     
-                    #campioni_positivi_classe.append(audio_loaded[start_campione:end_campione])
+                    
                     
         indice_classe=class_dictionary[classe]
         support_set_train[indice_classe]=campioni_positivi_classe
         
     return support_set_train
+
+
 support_set_train=create_support_set_training()
 print(support_set_train)
 
-
-
-#audio, sr = librosa.load(file_path, sr=None)
 
 
 
