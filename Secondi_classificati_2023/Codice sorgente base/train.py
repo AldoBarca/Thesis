@@ -68,6 +68,7 @@ if __name__ == "__main__":
     # Load data
     hdf_tr = os.path.join(args.traindir,'train.h5')
     hdf_train = h5py.File(hdf_tr, 'r+')
+    
     X = hdf_train['data'][:]
     Y = hdf_train['label'][:]
 

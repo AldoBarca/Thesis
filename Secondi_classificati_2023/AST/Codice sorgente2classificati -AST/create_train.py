@@ -1,6 +1,8 @@
 #File che crea lo spettrogramma del training set.
 #Total files created : 50770
 #data shape : (50770, 128, 34)   label shape : (50770, 1)         unique labels : (46,)
+#mffc
+#prima dim numero di esempi, 128: numero di bande di frequenza cioè lunghezza dei campioni, terzo il numero di frame temporali nello spettrogramma, cioe quante strisce orizzontali.
 import glob
 import os
 import pandas as pd
@@ -15,6 +17,7 @@ from args import args
 
 
 
+
 traindir = args.traindir
 csv_files = [f for f in glob.glob(os.path.join(traindir, '*/*.csv'))]
 
@@ -25,11 +28,11 @@ HOP_MEL = args.hoplen #hop between STFT windows
 FMIN = args.fmin
 FMAX = args.fmax
 N_SHOT = args.nshot #numero di shot pari a 5.
-fps = TARGET_SR/HOP_MEL 
+fps = TARGET_SR/HOP_MEL #sampling_rate/len_hop
 WIN_LEN = args.len
 SEG_LEN = WIN_LEN//2
-win_len = int(round((WIN_LEN/1000) * fps))
-seg_hop = int(round((SEG_LEN/1000) * fps))
+win_len = int(round((WIN_LEN/1000) * fps)) #viene 34 la win_lenght
+seg_hop = int(round((SEG_LEN/1000) * fps)) #la metà di win_lenght cioè 17
 
 mel = T.MelSpectrogram(sample_rate=TARGET_SR, n_fft=N_FFT, hop_length=HOP_MEL, f_min=FMIN, f_max=FMAX, n_mels=N_MELS)
 power_to_db = T.AmplitudeToDB()
@@ -37,28 +40,34 @@ transform = nn.Sequential(mel, power_to_db)
 
 
 # prende le labels.
-class_names = []
+class_names = [] #diventerà i nomi delle nostre 46 classi
 ds_names = []
 for csv_file in csv_files:
-    ds_name = csv_file.split('/')[-2]
-
+    ds_name = csv_file.split('/')[-2]  #nome cartella, di solito development
     #wav_file = csv_file.replace('csv','wav')
     df = pd.read_csv(csv_file)
-    col_names = df.columns.tolist()
+    col_names = df.columns.tolist() #lista colonne mi da audiofilename,starttime,endtime,nomeclasse1,2...
     for col_name in col_names:
         if (col_name not in ['Audiofilename', 'Starttime', 'Endtime']) and (col_name not in class_names) and (len(df[df[col_name]=='POS'])>0):
             class_names.append(col_name)
 
-map_cls_2_int={}
+map_cls_2_int={}  #mappa le varie classi a numeri interi creando un dictionary in formato classe1:0,classe2:1...
 for i in range(len(class_names)):
     map_cls_2_int[class_names[i]] = i
 
 def cls2int(cls_name):
     return map_cls_2_int[cls_name]
 
+
+#crea il file h5
 hdf_tr = os.path.join(traindir,'train.h5')
 hf = h5py.File(hdf_tr,'w')
-#crea il file h5
+
+
+#crea i dataset data e label dentro il file h5
+
+#shape indica le dimensioni iniziali del dataset. In questo caso parte da 0, numero_mels, lunghezza_finestra
+#il maxshape indica le dimensioni massime.
 hf.create_dataset('data', shape=(0, N_MELS, win_len), maxshape=(None, N_MELS, win_len))
 hf.create_dataset('label', shape=(0, 1), maxshape=(None, 1))
 
@@ -72,18 +81,18 @@ for csv_file in csv_files:
     ds_name = csv_file.split('/')[-2]
     wav_file = csv_file.replace('csv','wav')
     print(f"creating data for {wav_file}")
-    df = pd.read_csv(csv_file)
-    df.loc[:,'Starttime'] = df['Starttime'] 
+    df = pd.read_csv(csv_file) #df sta per data frame
+    df.loc[:,'Starttime'] = df['Starttime']   #loc è un metodo di pandas, prendo tutti i valori sotto la colonna startime, ergo tutte le righe ma solo il valore della colonna
     df.loc[:,'Endtime'] = df['Endtime']
     wav, sr = torchaudio.load(wav_file)
     resample = T.Resample(sr, TARGET_SR)
-    wav = resample(wav)
-    if wav.shape[0] != 1:
+    wav = resample(wav) #faccio il resample dell'audio a 2,02KHz
+    if wav.shape[0] != 1: #se l'audio non è in mono lo converto.
         wav = torch.mean(wav, dim=0, keepdim=True)
     melspec = transform(wav)
-
+    #lista colonne del file corrente.
     df_cols = df.columns.tolist()
-
+########
     dfs = []
     for df_col in df_cols:
         if len(df[df[df_col] == 'POS']) > 0:

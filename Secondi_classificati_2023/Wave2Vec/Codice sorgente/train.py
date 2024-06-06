@@ -9,7 +9,7 @@ from args import args
 import math
 import h5py
 import os
-
+import torchaudio
 def train_scl(encoder, train_loader, transform1, transform2, args):
 
     print(f"Training starting on {args.device}")
@@ -89,7 +89,7 @@ if __name__ == "__main__":
     transform2 = nn.Sequential(fshift, rc, resize, comp, awgn)
 
     # Prepare model
-    encoder = ResNet(method=args.method)
+    encoder = torchaudio.Wav2Vec2Model
     print(summary(encoder))
 
     # Launch training

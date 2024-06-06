@@ -1,5 +1,5 @@
 #File che crea lo spettrogramma del training set.
-
+#dim: (50770, 128, 34)
 
 import glob
 import os

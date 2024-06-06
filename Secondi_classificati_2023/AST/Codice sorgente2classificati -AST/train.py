@@ -11,7 +11,7 @@ from args import args
 import math
 import h5py
 import os
-
+from pprint import pprint
 def train_scl(encoder, train_loader, transform1, transform2, args):
 
     print(f"Training starting on {args.device}")
@@ -42,7 +42,7 @@ def train_scl(encoder, train_loader, transform1, transform2, args):
             y = y.to(args.device)
 
             x1 = transform1(x); x2 = transform2(x)
-
+          
             print("Shape of x1:", x1.shape)
             print("Shape of x2:", x2.shape)
 
@@ -83,14 +83,25 @@ if __name__ == "__main__":
     hdf_train = h5py.File(hdf_tr, 'r+')
     X = hdf_train['data'][:]
     Y = hdf_train['label'][:]
-    
+    #for y in Y:
+       # print(y)
+
+    #pprint(Y)
+    #print(X)
     print(X.shape)
     print(Y.shape)
-    # Create dataset
-    encoder=ASTForAudioClassification.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593", attn_implementation="sdpa", torch_dtype=torch.float16)
-    feature_extractor=ASTFeatureExtractor.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593")
 
-    X= feature_extractor(X,return_tensors="pt")
+    # Create dataset
+   
+    encoder=ASTForAudioClassification.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593", attn_implementation="sdpa", torch_dtype=torch.float16)
+    feature_extractor=AutoFeatureExtractor.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593")
+    X_extracted=[]
+    for x in X:
+        x_extracted=feature_extractor(x,return_tensors="pt")
+        X_extracted.Append(x_extracted)
+
+
+    X= feature_extractor(X_extracted,return_tensors="pt")
     X_tensor = torch.tensor(X['input_values']).unsqueeze(1)
     Y_tensor = torch.tensor(Y, dtype=torch.long)
     #train_dataset = torch.utils.data.TensorDataset(torch.tensor(X).unsqueeze(1), torch.tensor(Y.squeeze(), dtype=torch.long))
@@ -110,7 +121,7 @@ if __name__ == "__main__":
     transform1 = nn.Sequential(mix, fshift, rc, resize, comp, awgn) # only one branch has mixing with a background sound
     transform2 = nn.Sequential(fshift, rc, resize, comp, awgn)
    
-    # Prepare model
+   
 
     
     #encoder=ASTForAudioClassification.from_pretrained("MIT/ast-finetuned-audioset-10-10-0.4593")

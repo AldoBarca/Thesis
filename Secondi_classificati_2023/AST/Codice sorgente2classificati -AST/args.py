@@ -1,8 +1,10 @@
 import argparse
 import os
 parser = argparse.ArgumentParser()
-
+#portiamo il sampling a 6000 e 8000
 # generic
+#librosa o torchaudio
+#poi passo a AST
 parser.add_argument("--device", type=str, default='cuda:0') #device to train on
 parser.add_argument("--workers", type=int, default=4) #number of workers
 parser.add_argument("--wandb", action='store_true') #use wandb

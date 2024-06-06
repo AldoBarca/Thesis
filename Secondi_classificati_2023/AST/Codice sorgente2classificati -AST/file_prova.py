@@ -6,7 +6,7 @@ import torch
 import args
 from torch.utils.data import Dataset, DataLoader
 from torchaudio import transforms as T
-
+import glob
 # Definizione delle variabili
 N_MELS = args.nmels
 TARGET_SR = args.sr  #sampling rate, di default 22050
@@ -33,7 +33,7 @@ transform = T.MelSpectrogram(sample_rate=TARGET_SR, n_mels=N_MELS)
 traindir = args.train_dir
 
 
-csv_files = ['list_of_your_csv_files']
+csv_files = [f for f in glob.glob(os.path.join(traindir, '*/*.csv'))]
 hdf_tr = os.path.join(traindir, 'train.h5')
 hf = h5py.File(hdf_tr, 'w')
 # Crea il file H5

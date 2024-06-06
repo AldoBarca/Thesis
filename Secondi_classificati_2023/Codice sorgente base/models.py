@@ -9,12 +9,12 @@ def conv3x3(in_planes, out_planes, stride=1):
 
 class BasicBlock(nn.Module):
     expansion = 1
-
+                        #input,  output
     def __init__(self, inplanes, planes, stride=1, downsample=None):
         super(BasicBlock, self).__init__()
-        self.conv1 = conv3x3(inplanes, planes)
-        self.bn1 = nn.BatchNorm2d(planes)
-        self.relu = nn.LeakyReLU(0.1)
+        self.conv1 = conv3x3(inplanes, planes) #kernel 3*3
+        self.bn1 = nn.BatchNorm2d(planes) 
+        self.relu = nn.LeakyReLU(0.1)  #0,1 è lo slope
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = nn.BatchNorm2d(planes)
         self.conv3 = conv3x3(planes, planes)
