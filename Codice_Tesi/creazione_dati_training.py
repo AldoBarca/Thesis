@@ -234,7 +234,8 @@ def create_support_set_training1B(set):
                 audio_evento=audio_loaded[start_campione:end_campione]
                 lunghezza_frame_campioni=int(0.01*sr)
 
-
+                #scomposizione in frames del frammento di audio dell'evento positivo, diventa un tensore di tipo [180][220]
+                #il 180 varia in base alla lunghezza del frammento audio 
                 frames=librosa.util.frame(audio_evento, frame_length=lunghezza_frame_campioni,hop_length=lunghezza_frame_campioni).T 
                 writable_copy=np.copy(frames)
                 frames=torch.from_numpy(writable_copy)
@@ -344,45 +345,193 @@ def create_support_set_training1B(set):
 
     
     return support_set_train
-                    
 
 
-                
+'''                  
+per il query set il ragionamento è il medesimo, tuttavia cambia tanto il meccanismo con cui si prendono gli audio.
+Dobbiamo difatti prendere l'audio intero(dopo i 5 campioni positivi) e non solo gli spezzoni positivi, dovremo però tenere di tutto l'audio le labels
+relative agli spezzoni positivi e non.
 
+Ritorna il problema della variabilità, non tanto delle frames visto che possiamo gestirlo allo stesso modo, ma degli "eventi"
+Mi viene in mente una soluzione :
+1)continuiamo a mantere come seconda dimensione del query set gli eventi, semplicemente dividiamo l'audio intero in eventi della stessa dim pari all'evento di lunghezza max.
+A questo punto si hanno 3 soluzioni:
 
-def create_support_set_training():
-   
-    support_set_train=torch.empty(conta_classi_set(support_set),300,300,300)
-   
-    for classe,file in support_set.items():
-        campioni_positivi_classe=torch.empty(3,3)
+A) Uniformare gli audio come durata all'audio più lungo e dunque allungare gli audio più brevi tramite data augmentation
+B)Uniformare gli audio come durata all'audio più breve. Perderemo però cosi molti dati ma avremo una creazione computazionalmente non troppo onerosa
+C) Utilizziamo un approccio intermedio tagliando gli audio oltre la soglia e augmentando gli audio sotto la soglia.
+
+La positività o meno dell'evento si trasferirà a livello di singola frame con label 0 o 1.
+Ergo la label sarà un tensore 3d con dimensionalità (num_classi,num_eventi,num_frame)
+Cosi avremo label[classe,evento,frame]=POS/NEG con ovviamente POS=1 e NEG=0
+
+Usando la funzione riportata sotto troviamo che l'audio più lungo è di 7200s cioè 2h e il più breve è di 600s cioè 10m, la media è di 5800s cioè circa 96m
+'''
+def calcola_durata_audio(set):
+    durata_max=0
+    durata_min=0
+    durata_totale=0
+    numero_audio=0
+    for classe,file in set.items():
         for audio,events in file.items():
             audio_path=os.path.join(args.traindir,audio)
             audio_loaded, sr=librosa.load(audio_path)
+            durata_audio=librosa.get_duration(y=audio_loaded, sr=sr)
+            if(durata_min==0):
+                durata_min=durata_audio
+            elif(durata_min>durata_audio):
+                durata_min=durata_audio
+            if(durata_max<durata_audio):
+                durata_max=durata_audio
+            numero_audio=numero_audio+1
+            durata_totale=durata_totale+durata_audio
+    media=durata_totale/numero_audio
+    return durata_max,durata_min,media
+            
+
+print(calcola_durata_audio(query_set))
+
+
+def create_query_set_training(set):
+    classi_set=conta_classi_set(set)
+    max_numero_eventi=return_max_num_eventi(set)
+    num_max_frame,num_min_frame=ritorna_numero_frame(set,0.01)
+    num_max_frame=math.floor(num_max_frame)
+    query_set_train=torch.empty(classi_set,max_numero_eventi,num_max_frame,220)
+
+    for classe,file in support_set.items():
+        id_classe=class_dictionary[classe]
+        for audio,events in file.items():
+            id_evento=1
+
+            audio_path=os.path.join(args.traindir,audio)
+            audio_loaded, sr=librosa.load(audio_path)
+
             for evento in events:
+                id_frame=0
+
+                start_campione=int(evento['start']*sr)
+                end_campione=int(evento['end']*sr)
+                audio_evento=audio_loaded[start_campione:end_campione]
+                lunghezza_frame_campioni=int(0.01*sr)
+
+                #scomposizione in frames del frammento di audio dell'evento positivo, diventa un tensore di tipo [180][220]
+                #il 180 varia in base alla lunghezza del frammento audio 
+                frames=librosa.util.frame(audio_evento, frame_length=lunghezza_frame_campioni,hop_length=lunghezza_frame_campioni).T 
+                writable_copy=np.copy(frames)
+                frames=torch.from_numpy(writable_copy)
+                frames_evento=frames
+                id_frame=id_frame+len(frames)
+                if(id_frame==num_max_frame):
+            
+                    query_set_train[id_classe,id_evento]=frames_evento
+                    print(query_set_train)
+
+
+                if(id_frame>num_max_frame):
+                    frames_evento=frames_evento[0:num_max_frame,:]
+                    query_set_train[id_classe,id_evento]=frames_evento
+                else:
+                        while(id_frame<num_max_frame):
+                            #data augmentation
+                            shift=np.random.randint(len(audio_evento) * 0.2)
+                            audio_evento_augmented=np.roll(audio_evento,shift)
+                            noise = np.random.randn(len(audio_evento_augmented))
+                            audio_evento_augmented=audio_evento_augmented+(0.05*noise)
+
+                            frames=librosa.util.frame(audio_evento_augmented, frame_length=lunghezza_frame_campioni,hop_length=lunghezza_frame_campioni).T 
+                            writable_copy=np.copy(frames)
+                            frames=torch.from_numpy(writable_copy)
+
+                            frames_evento=torch.cat((frames_evento,frames),dim=0)
+                            id_frame=id_frame+len(frames)
+                            if(id_frame==num_max_frame):
+                                frames_evento=frames_evento[0:num_max_frame,:]
+                                query_set_train[id_classe,id_evento]=frames_evento
+                                break
+
+                            if(id_frame>num_max_frame):
+                                frames_evento=frames_evento[0:num_max_frame,:]
+                                query_set_train[id_classe,id_evento]=frames_evento
+                                break
+                
+                id_evento=id_evento+1
+                print(id_evento)
+
+            #Da qui in poi si riempiono di eventi "augmented" le classi con meno eventi
+
+            while(id_evento!=max_numero_eventi):
+                for evento in events:
+                    id_frame=0
+                    if(random.randint(0, 1)>0.9):    #per ogni evento ho il 40% di prendere l'evento.
+                        continue
                     start_campione=int(evento['start']*sr)
-                    end_campione=int(evento['end']*sr)
-                    
-                    audio_evento=audio_loaded[start_campione:end_campione]  #frammento di audio contenente solo l'evento positivo
-                    lunghezza_frame_campioni=int(0.01*sr) #220 campioni per frame
+                end_campione=int(evento['end']*sr)
+                audio_evento=audio_loaded[start_campione:end_campione]
 
-                    #scomposizione in frames del frammento di audio dell'evento positivo, diventa un tensore di tipo [180][220]
-                    #il 180 varia in base alla lunghezza del frammento audio 
-                    frames=librosa.util.frame(audio_evento, frame_length=lunghezza_frame_campioni,hop_length=lunghezza_frame_campioni).T    #l'hop lenght lo faccio intanto senza sovrapposizioni, poi vediamo
-                    #campioni_positivi_classe.append(frames)
-                    frames=torch.from_numpy(frames)
-                    torch.stack(campioni_positivi_classe,frames)
-                    
-                    
-                    
-        indice_classe=class_dictionary[classe]
-        support_set_train[indice_classe]=campioni_positivi_classe
-        
-    return support_set_train
+                #data augmentation
+
+                shift=np.random.randint(len(audio_evento) * 0.2)
+                audio_evento_augmented=np.roll(audio_evento,shift)
+                noise = np.random.randn(len(audio_evento_augmented))
+                audio_evento_augmented=audio_evento_augmented+(0.05*noise)
+                lunghezza_frame_campioni=int(0.01*sr)
+                crop_len=int(len(audio_evento_augmented) * 0.8)
+                start = random.randint(0, len(audio_evento_augmented) - crop_len)
+                audio_evento_augmented=audio_evento_augmented[start:start+crop_len]
 
 
-support_set_train=create_support_set_training1B(support_set)
-print(support_set_train)
+                frames=librosa.util.frame(audio_evento, frame_length=lunghezza_frame_campioni,hop_length=lunghezza_frame_campioni).T 
+                writable_copy=np.copy(frames)
+                frames=torch.from_numpy(writable_copy)
+                frames_evento=frames
+                id_frame=id_frame+len(frames)
+                if(id_frame==num_max_frame):
+                 
+                    query_set_train[id_classe,id_evento]=frames_evento
+                    
+
+
+                if(id_frame>num_max_frame):
+                    frames_evento=frames_evento[0:num_max_frame,:]
+                    query_set_train[id_classe,id_evento]=frames_evento
+                else:
+                        while(id_frame<num_max_frame):
+                            #data_augmentation
+                            shift=np.random.randint(len(audio_evento) * 0.2)
+                            audio_evento_augmented=np.roll(audio_evento,shift)
+                            noise = np.random.randn(len(audio_evento_augmented))
+                            audio_evento_augmented=audio_evento_augmented+(0.05*noise)
+
+                            frames=librosa.util.frame(audio_evento_augmented, frame_length=lunghezza_frame_campioni,hop_length=lunghezza_frame_campioni).T 
+                            writable_copy=np.copy(frames)
+                            frames=torch.from_numpy(writable_copy)
+
+                            frames_evento=torch.cat((frames_evento,frames),dim=0)
+                            id_frame=id_frame+len(frames)
+                            if(id_frame==num_max_frame):
+                                frames_evento=frames_evento[0:num_max_frame,:]
+                                query_set_train[id_classe,id_evento]=frames_evento
+                                break
+
+                            if(id_frame>num_max_frame):
+                                frames_evento=frames_evento[0:num_max_frame,:]
+                                query_set_train[id_classe,id_evento]=frames_evento
+                                break
+                id_evento=id_evento+1
+                print(id_evento)
+        print("classe:{} finita"+classe)
+        print(query_set_train)
+        print(query_set_train.shape)
+
+    
+    return query_set_train
+
+
+
+
+#support_set_train=create_support_set_training1B(support_set)
+
 
 
 
