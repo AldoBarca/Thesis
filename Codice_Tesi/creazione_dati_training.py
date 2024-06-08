@@ -217,7 +217,7 @@ def create_support_set_training1B(set):
     num_max_frame,num_min_frame=ritorna_numero_frame(set,0.01)
     num_max_frame=math.floor(num_max_frame)
     support_set_train=torch.empty(classi_set,max_numero_eventi,num_max_frame,220)
-
+    
     for classe,file in support_set.items():
         id_classe=class_dictionary[classe]
         for audio,events in file.items():
@@ -389,16 +389,23 @@ def calcola_durata_audio(set):
     return durata_max,durata_min,media
             
 
-print(calcola_durata_audio(query_set))
 
+#implementerò la funzione considerando l'audio più lungo e trasformando gli audio più brevi per uniformarne la durata
 
 def create_query_set_training(set):
     classi_set=conta_classi_set(set)
     max_numero_eventi=return_max_num_eventi(set)
     num_max_frame,num_min_frame=ritorna_numero_frame(set,0.01)
+    print(conta_eventi_set(set))
+    print(num_max_frame,max_numero_eventi)
+    audio_max,audio_min,media_audio=calcola_durata_audio(set)
+
+    
+   
+    
     num_max_frame=math.floor(num_max_frame)
     query_set_train=torch.empty(classi_set,max_numero_eventi,num_max_frame,220)
-
+    labels=torch.empty(classi_set,max_numero_eventi,num_max_frame)
     for classe,file in support_set.items():
         id_classe=class_dictionary[classe]
         for audio,events in file.items():
@@ -438,7 +445,7 @@ def create_query_set_training(set):
                             audio_evento_augmented=np.roll(audio_evento,shift)
                             noise = np.random.randn(len(audio_evento_augmented))
                             audio_evento_augmented=audio_evento_augmented+(0.05*noise)
-
+                            
                             frames=librosa.util.frame(audio_evento_augmented, frame_length=lunghezza_frame_campioni,hop_length=lunghezza_frame_campioni).T 
                             writable_copy=np.copy(frames)
                             frames=torch.from_numpy(writable_copy)
@@ -528,12 +535,21 @@ def create_query_set_training(set):
     return query_set_train
 
 
-
+#query_set_train=create_query_set_training(query_set)
 
 #support_set_train=create_support_set_training1B(support_set)
+audio_path=os.path.join(args.traindir,"a1.wav")
+audio_loaded, sr=librosa.load(audio_path)
+lunghezza_frame_campioni=int(0.01*sr)
+S = librosa.feature.melspectrogram(y=audio_loaded, sr=sr, n_fft=lunghezza_frame_campioni, hop_length=lunghezza_frame_campioni, n_mels=128, fmax=8000)
 
+# Converti l'ampiezza a decibel
+S_dB = librosa.power_to_db(S, ref=np.max)
 
-
-
+frames=librosa.util.frame(audio_loaded, frame_length=lunghezza_frame_campioni,hop_length=lunghezza_frame_campioni).T 
+print(audio_loaded.shape)
+print(frames.shape)
+print(S.shape)
+print(S_dB.shape)
 
 #stft = torchlibrosa.stft.Spectrogram(n_fft=n_fft, hop_length=hop_length, win_length=win_length, power=2.0)
