@@ -31,12 +31,6 @@ class_dictionary={}
 
 
 
-"""
-ouput del support set in formato dictionary con chiave nome_classe:
-nome_classe:{audio1:[{start,end},{start,end}]}
-
-
-"""
 
 def get_support_set():
     class_list=[]
@@ -121,6 +115,8 @@ def conta_classi_set(set):
     for classe,file in set.items():
         i=i+1
     return i
+
+
 def conta_eventi_set(set):
     eventi_classi={}
     for classe,file in set.items():
@@ -211,7 +207,7 @@ uguale al numero di frame dell'evento più lungo.
 """
 
 
-def create_support_set_training1B(set):
+def create_support_set_training(set):
     classi_set=conta_classi_set(set)
     max_numero_eventi=return_max_num_eventi(set)
     num_max_frame,num_min_frame=ritorna_numero_frame(set,0.01)
@@ -390,8 +386,11 @@ def calcola_durata_audio(set):
             
 
 
-#implementerò la funzione considerando l'audio più lungo e trasformando gli audio più brevi per uniformarne la durata
+#implementerò la funzione considerando l'audio più lungo e augmentando gli audio più brevi per uniformarne la durata
 
+num_max_frame_query,num_min_frame_query=ritorna_numero_frame(query_set,0.01)
+num_max_frame_support,num_min_frame_support=ritorna_numero_frame(support_set,0.01)
+print(num_max_frame_query,num_max_frame_support)
 def create_query_set_training(set):
     classi_set=conta_classi_set(set)
     max_numero_eventi=return_max_num_eventi(set)
